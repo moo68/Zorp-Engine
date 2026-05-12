@@ -14,9 +14,20 @@
 typedef struct {
     uint32_t graphics_family;
     bool graphics_family_found;
+
     uint32_t present_family;
     bool present_family_found;
 } QueueFamilyIndices;
+
+typedef struct {
+    VkSurfaceCapabilitiesKHR capabilities;
+
+    VkSurfaceFormatKHR *formats;
+    uint32_t num_formats;
+
+    VkPresentModeKHR *present_modes;
+    uint32_t num_present_modes;
+} SwapChainSupportDetails;
 
 
 const int num_validation_layers = 1;
@@ -49,6 +60,8 @@ bool is_device_suitable(VkPhysicalDevice device, VkSurfaceKHR surface);
 QueueFamilyIndices find_queue_families(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 bool check_device_extension_support(VkPhysicalDevice device);
+
+SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 
 int main(int argc, char *argv[]) {
@@ -169,7 +182,8 @@ int main(int argc, char *argv[]) {
     device_creation_info.pQueueCreateInfos = queue_creation_infos;
     device_creation_info.queueCreateInfoCount = queue_creation_info_count;
     device_creation_info.pEnabledFeatures = &device_features;
-    device_creation_info.enabledExtensionCount = 0;
+    device_creation_info.enabledExtensionCount = (uint32_t)num_device_extensions;
+    device_creation_info.ppEnabledExtensionNames = device_extensions;
     if (enable_validation_layers == true) {
         device_creation_info.enabledLayerCount = (uint32_t)num_validation_layers;
         device_creation_info.ppEnabledLayerNames = validation_layers;
@@ -325,6 +339,12 @@ bool is_device_suitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
     if (check_device_extension_support(device) == false) {
         return false;
     }
+    else {
+        SwapChainSupportDetails swap_chain_support = query_swap_chain_support(device, surface);
+        if ((swap_chain_support.num_formats == 0) || (swap_chain_support.num_present_modes == 0)) {
+            return false;
+        }
+    }
 
     return true;
 }
@@ -386,5 +406,29 @@ bool check_device_extension_support(VkPhysicalDevice device) {
     }
 
     return true;
+}
+
+SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice device, VkSurfaceKHR surface) {
+    SwapChainSupportDetails details = {0};
+
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &(details.capabilities));
+
+    uint32_t format_count = 0;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, NULL);
+    if (format_count != 0) {
+        details.num_formats = format_count;
+        details.formats = malloc(format_count * sizeof(VkSurfaceFormatKHR));
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats);
+    }
+
+    uint32_t present_mode_count = 0;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, NULL);
+    if (present_mode_count != 0) {
+        details.num_present_modes = present_mode_count;
+        details.present_modes = malloc(present_mode_count * sizeof(VkPresentModeKHR));
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.present_modes);
+    }
+
+    return details;
 }
 
