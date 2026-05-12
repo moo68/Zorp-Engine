@@ -45,6 +45,11 @@ const char *device_extensions[] = {
 
 VkImage *swap_chain_images = NULL;
 uint32_t num_swap_chain_images = 0;
+VkFormat swap_chain_image_format = {0};
+VkExtent2D swap_chain_extent = {0};
+
+VkImageView *swap_chain_image_views = NULL;
+uint32_t num_swap_chain_image_views = 0;
 
 #ifdef NDEBUG
 const bool enable_validation_layers = false;
@@ -75,6 +80,8 @@ VkSurfaceFormatKHR choose_swap_surface_format(VkSurfaceFormatKHR *formats, uint3
 VkPresentModeKHR choose_swap_present_mode(VkPresentModeKHR *present_modes, uint32_t num_present_modes);
 
 VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR *capabilities, SDL_Window *window);
+
+void create_image_views();
 
 
 // Function definitions:
@@ -268,6 +275,12 @@ int main(int argc, char *argv[]) {
     swap_chain_images = malloc(num_swap_chain_images * sizeof(VkImage));
     vkGetSwapchainImagesKHR(device, swap_chain, &num_swap_chain_images, swap_chain_images);
 
+    swap_chain_image_format = surface_format.format;
+    swap_chain_extent = extent;
+
+    // Create image views.
+    create_image_views(device);
+
     // The render loop:
     bool is_running = true;
     while (is_running == true) {
@@ -284,6 +297,9 @@ int main(int argc, char *argv[]) {
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
+    for (int i = 0; i < (int)num_swap_chain_image_views; i++) {
+        vkDestroyImageView(device, swap_chain_image_views[i], NULL);
+    }
     vkDestroySwapchainKHR(device, swap_chain, NULL);
     vkDestroyDevice(device, NULL);
     SDL_Vulkan_DestroySurface(instance, surface, NULL);
@@ -548,5 +564,34 @@ VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR *capabilities, SDL_
     }
 
     return actual_extent;
+}
+
+void create_image_views(VkDevice device) {
+    num_swap_chain_image_views = num_swap_chain_images;
+    swap_chain_image_views = malloc(num_swap_chain_image_views * sizeof(VkImageView));
+    
+    for (int i = 0; i < (int)num_swap_chain_images; i++) {
+        VkImageViewCreateInfo curr_image_view_creation_info = {0};
+
+        curr_image_view_creation_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        curr_image_view_creation_info.image = swap_chain_images[i];
+        curr_image_view_creation_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        curr_image_view_creation_info.format = swap_chain_image_format;
+
+        curr_image_view_creation_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        curr_image_view_creation_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        curr_image_view_creation_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        curr_image_view_creation_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        curr_image_view_creation_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        curr_image_view_creation_info.subresourceRange.baseMipLevel = 0;
+        curr_image_view_creation_info.subresourceRange.levelCount = 1;
+        curr_image_view_creation_info.subresourceRange.baseArrayLayer = 0;
+        curr_image_view_creation_info.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(device, &curr_image_view_creation_info, NULL, &swap_chain_image_views[i]) != VK_SUCCESS) {
+            fprintf(stderr, "Failed to create an image view!\n");
+        }
+    }
 }
 
