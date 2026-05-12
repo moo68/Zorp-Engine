@@ -5,6 +5,8 @@
 #include <SDL3/SDL_log.h>
 #include <SDL3/SDL_vulkan.h>
 
+#include "ZorpEngine/shader_utils.h"
+
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
