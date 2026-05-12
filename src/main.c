@@ -43,6 +43,9 @@ const char *device_extensions[] = {
     "VK_KHR_swapchain"
 };
 
+VkImage *swap_chain_images = NULL;
+uint32_t num_swap_chain_images = 0;
+
 #ifdef NDEBUG
 const bool enable_validation_layers = false;
 #else
@@ -260,6 +263,10 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Failed to create a swapchain!\n");
         return -1;
     }
+
+    vkGetSwapchainImagesKHR(device, swap_chain, &num_swap_chain_images, NULL);
+    swap_chain_images = malloc(num_swap_chain_images * sizeof(VkImage));
+    vkGetSwapchainImagesKHR(device, swap_chain, &num_swap_chain_images, swap_chain_images);
 
     // The render loop:
     bool is_running = true;
