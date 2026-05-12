@@ -9,8 +9,10 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
+#include <limits.h>
 
 
+// Structs:
 typedef struct {
     uint32_t graphics_family;
     bool graphics_family_found;
@@ -30,14 +32,15 @@ typedef struct {
 } SwapChainSupportDetails;
 
 
+// Global variables:
 const int num_validation_layers = 1;
 const char *validation_layers[] = {
     "VK_LAYER_KHRONOS_validation"
 };
 
-const int num_device_extensions = 0;
+const int num_device_extensions = 1;
 const char *device_extensions[] = {
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    "VK_KHR_swapchain"
 };
 
 #ifdef NDEBUG
@@ -47,6 +50,7 @@ const bool enable_validation_layers = true;
 #endif
 
 
+// Function prototypes:
 VkApplicationInfo create_app_info(void);
 
 VkInstanceCreateInfo create_instance_creation_info(
@@ -63,7 +67,14 @@ bool check_device_extension_support(VkPhysicalDevice device);
 
 SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice device, VkSurfaceKHR surface);
 
+VkSurfaceFormatKHR choose_swap_surface_format(VkSurfaceFormatKHR *formats, uint32_t num_formats);
 
+VkPresentModeKHR choose_swap_present_mode(VkPresentModeKHR *present_modes, uint32_t num_present_modes);
+
+VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR *capabilities, SDL_Window *window);
+
+
+// Function definitions:
 int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
@@ -205,6 +216,51 @@ int main(int argc, char *argv[]) {
     VkQueue present_queue = {0};
     vkGetDeviceQueue(device, indices.present_family, 0, &present_queue);
 
+    // Create the swap chain.
+    SwapChainSupportDetails swap_chain_support = query_swap_chain_support(physical_device, surface);
+    VkSurfaceFormatKHR surface_format = choose_swap_surface_format(swap_chain_support.formats, swap_chain_support.num_formats);
+    VkPresentModeKHR present_mode = choose_swap_present_mode(swap_chain_support.present_modes, swap_chain_support.num_present_modes);
+    VkExtent2D extent = choose_swap_extent(&(swap_chain_support.capabilities), window);
+
+    uint32_t image_count = swap_chain_support.capabilities.minImageCount + 1;
+    if ((swap_chain_support.capabilities.maxImageCount > 0) && (image_count > swap_chain_support.capabilities.maxImageCount)) {
+        image_count = swap_chain_support.capabilities.maxImageCount;
+    }
+
+    VkSwapchainCreateInfoKHR swap_chain_creation_info = {0};
+    swap_chain_creation_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    swap_chain_creation_info.surface = surface;
+    swap_chain_creation_info.minImageCount = image_count;
+    swap_chain_creation_info.imageFormat = surface_format.format;
+    swap_chain_creation_info.imageColorSpace = surface_format.colorSpace;
+    swap_chain_creation_info.imageExtent = extent;
+    swap_chain_creation_info.imageArrayLayers = 1;
+    swap_chain_creation_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    uint32_t queue_family_indices[2] = {indices.graphics_family, indices.present_family};
+    if (indices.graphics_family != indices.present_family) {
+        swap_chain_creation_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        swap_chain_creation_info.queueFamilyIndexCount = 2;
+        swap_chain_creation_info.pQueueFamilyIndices = queue_family_indices;
+    }
+    else {
+        swap_chain_creation_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        swap_chain_creation_info.queueFamilyIndexCount = 0;
+        swap_chain_creation_info.pQueueFamilyIndices = NULL;
+    }
+
+    swap_chain_creation_info.preTransform = swap_chain_support.capabilities.currentTransform;
+    swap_chain_creation_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    swap_chain_creation_info.presentMode = present_mode;
+    swap_chain_creation_info.clipped = VK_TRUE;
+    swap_chain_creation_info.oldSwapchain = VK_NULL_HANDLE;
+
+    VkSwapchainKHR swap_chain = {0};
+    if (vkCreateSwapchainKHR(device, &swap_chain_creation_info, NULL, &swap_chain) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create a swapchain!\n");
+        return -1;
+    }
+
     // The render loop:
     bool is_running = true;
     while (is_running == true) {
@@ -216,11 +272,12 @@ int main(int argc, char *argv[]) {
                 is_running = false;
             }
         }
-        printf("Looping!\n");
+        //printf("Looping!\n");
     }
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
+    vkDestroySwapchainKHR(device, swap_chain, NULL);
     vkDestroyDevice(device, NULL);
     SDL_Vulkan_DestroySurface(instance, surface, NULL);
     vkDestroyInstance(instance, NULL);
@@ -430,5 +487,59 @@ SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice device, VkSurf
     }
 
     return details;
+}
+
+VkSurfaceFormatKHR choose_swap_surface_format(VkSurfaceFormatKHR *formats, uint32_t num_formats) {
+    for (int i = 0; i < (int)num_formats; i++) {
+        VkSurfaceFormatKHR curr_format = formats[i];
+        if ((curr_format.format == VK_FORMAT_B8G8R8A8_SRGB) && (curr_format.colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)) {
+            return curr_format;
+        }
+    }
+
+    return formats[0];
+}
+
+VkPresentModeKHR choose_swap_present_mode(VkPresentModeKHR *present_modes, uint32_t num_present_modes) {
+    for (int i = 0; i < (int)num_present_modes; i++) {
+        VkPresentModeKHR curr_present_mode = present_modes[i];
+        if (curr_present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            return curr_present_mode;
+        }
+    }
+
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR *capabilities, SDL_Window *window) {
+    // If Vulkan alrady figured out the extent, just return it.
+    if (capabilities->currentExtent.width != UINT32_MAX) {
+        return capabilities->currentExtent;
+    }
+
+    // Make a new VkExtent2D struct.
+    int width = 0;
+    int height = 0;
+    SDL_GetWindowSizeInPixels(window, &width, &height);
+    VkExtent2D actual_extent = {
+        .width = (uint32_t)width,
+        .height = (uint32_t)height
+    };
+
+    // Clamp the struct's values if need be.
+    if (actual_extent.width < capabilities->minImageExtent.width) {
+        actual_extent.width = capabilities->minImageExtent.width;
+    }
+    if (actual_extent.width > capabilities->maxImageExtent.width) {
+        actual_extent.width = capabilities->maxImageExtent.width;
+    }
+    if (actual_extent.height < capabilities->minImageExtent.height) {
+        actual_extent.height = capabilities->minImageExtent.height;
+    }
+    if (actual_extent.height > capabilities->maxImageExtent.height) {
+        actual_extent.height = capabilities->maxImageExtent.height;
+    }
+
+    return actual_extent;
 }
 
