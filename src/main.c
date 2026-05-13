@@ -119,7 +119,6 @@ int main(int argc, char *argv[]) {
     // Create a Vulkan instance.
     VkInstance instance = {0};
     VkApplicationInfo app_info = create_app_info();
-
     VkDebugUtilsMessengerCreateInfoEXT debug_creation_info = {0};
     debug_creation_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     VkInstanceCreateInfo creation_info = create_instance_creation_info(&app_info, &debug_creation_info);
@@ -444,6 +443,31 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
+    // Actually create the actual pipeline object!
+    VkGraphicsPipelineCreateInfo pipeline_creation_info = {0};
+    pipeline_creation_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_creation_info.stageCount = 2;
+    pipeline_creation_info.pStages = shader_stages;
+    pipeline_creation_info.pVertexInputState = &vertex_input_creation_info;
+    pipeline_creation_info.pInputAssemblyState = &input_assembly_creation_info;
+    pipeline_creation_info.pViewportState = &viewport_state_creation_info;
+    pipeline_creation_info.pRasterizationState = &rasterizer_creation_info;
+    pipeline_creation_info.pMultisampleState = &multisampling_creation_info;
+    pipeline_creation_info.pDepthStencilState = NULL;
+    pipeline_creation_info.pColorBlendState = &color_blend_creation_info;
+    pipeline_creation_info.pDynamicState = &dynamic_state_creation_info;
+    pipeline_creation_info.layout = pipeline_layout;
+    pipeline_creation_info.renderPass = render_pass;
+    pipeline_creation_info.subpass = 0;
+    pipeline_creation_info.basePipelineHandle = VK_NULL_HANDLE;
+    pipeline_creation_info.basePipelineIndex = -1;
+
+    VkPipeline graphics_pipeline = {0};
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipeline_creation_info, NULL, &graphics_pipeline) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create graphics pipeline!\n");
+        return -1;
+    }
+
     vkDestroyShaderModule(device, vert_shader_module, NULL);
     vkDestroyShaderModule(device, frag_shader_module, NULL);
 
@@ -463,6 +487,7 @@ int main(int argc, char *argv[]) {
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
+    vkDestroyPipeline(device, graphics_pipeline, NULL);
     vkDestroyPipelineLayout(device, pipeline_layout, NULL);
     vkDestroyRenderPass(device, render_pass, NULL);
     for (int i = 0; i < (int)num_swap_chain_image_views; i++) {
