@@ -54,6 +54,9 @@ VkExtent2D swap_chain_extent = {0};
 VkImageView *swap_chain_image_views = NULL;
 uint32_t num_swap_chain_image_views = 0;
 
+VkRenderPass render_pass = {0};
+VkPipelineLayout pipeline_layout = {0};
+
 #ifdef NDEBUG
 const bool enable_validation_layers = false;
 #else
@@ -87,6 +90,8 @@ VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR *capabilities, SDL_
 void create_image_views();
 
 VkShaderModule create_shader_module(VkDevice device, const char *code, size_t size);
+
+void create_render_pass(VkRenderPass *render_pass);
 
 
 // Function definitions:
@@ -286,6 +291,38 @@ int main(int argc, char *argv[]) {
     // Create image views.
     create_image_views(device);
 
+    // Create render passes.
+    VkAttachmentDescription color_attachment = {0};
+    color_attachment.format = swap_chain_image_format;
+    color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference color_attachment_ref = {0};
+    color_attachment_ref.attachment = 0;
+    color_attachment_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass = {0};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_attachment_ref;
+
+    VkRenderPassCreateInfo render_pass_creation_info = {0};
+    render_pass_creation_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_creation_info.attachmentCount = 1;
+    render_pass_creation_info.pAttachments = &color_attachment;
+    render_pass_creation_info.subpassCount = 1;
+    render_pass_creation_info.pSubpasses = &subpass;
+
+    if (vkCreateRenderPass(device, &render_pass_creation_info, NULL, &render_pass) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create a render pass!\n");
+        return -1;
+    }
+
     // Read shaders and crate shader modules.
     size_t vert_shader_size = 0;
     char *vert_shader_code = read_shader_file("build/shaders/simple.vert.spv", &vert_shader_size);
@@ -394,9 +431,7 @@ int main(int argc, char *argv[]) {
     dynamic_state_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynamic_state_creation_info.dynamicStateCount = dynamic_state_count;
     dynamic_state_creation_info.pDynamicStates = dynamic_states;
-
-    VkPipelineLayout pipeline_layout = {0};
-    
+ 
     VkPipelineLayoutCreateInfo pipeline_layout_creation_info = {0};
     pipeline_layout_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_creation_info.setLayoutCount = 0;
@@ -429,6 +464,7 @@ int main(int argc, char *argv[]) {
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
     vkDestroyPipelineLayout(device, pipeline_layout, NULL);
+    vkDestroyRenderPass(device, render_pass, NULL);
     for (int i = 0; i < (int)num_swap_chain_image_views; i++) {
         vkDestroyImageView(device, swap_chain_image_views[i], NULL);
     }
