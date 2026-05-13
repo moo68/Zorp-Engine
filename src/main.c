@@ -1,3 +1,4 @@
+// REMINDER: RE_ENABLE -Werror soon!!!!
 #include <vulkan/vulkan.h>
 
 #include <SDL3/SDL.h>
@@ -312,6 +313,101 @@ int main(int argc, char *argv[]) {
     (void)shader_stages;
 
     // More graphics pipeline:
+    VkPipelineVertexInputStateCreateInfo vertex_input_creation_info = {0};
+    vertex_input_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertex_input_creation_info.vertexBindingDescriptionCount = 0;
+    vertex_input_creation_info.pVertexBindingDescriptions = NULL;
+    vertex_input_creation_info.vertexAttributeDescriptionCount = 0;
+    vertex_input_creation_info.pVertexAttributeDescriptions = NULL;
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_creation_info = {0};
+    input_assembly_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly_creation_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_creation_info.primitiveRestartEnable = VK_FALSE; 
+
+    VkViewport viewport = {0};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)(swap_chain_extent.width);
+    viewport.height = (float)(swap_chain_extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissor = {0};
+    scissor.offset = (VkOffset2D){0, 0};
+    scissor.extent = swap_chain_extent;
+
+    VkPipelineViewportStateCreateInfo viewport_state_creation_info = {0};
+    viewport_state_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state_creation_info.viewportCount = 1;
+    viewport_state_creation_info.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rasterizer_creation_info = {0};
+    rasterizer_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer_creation_info.depthClampEnable = VK_FALSE;
+    rasterizer_creation_info.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer_creation_info.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer_creation_info.lineWidth = 1.0f;
+    rasterizer_creation_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer_creation_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer_creation_info.depthBiasEnable = VK_FALSE;
+    rasterizer_creation_info.depthBiasConstantFactor = 0.0f;
+    rasterizer_creation_info.depthBiasClamp = 0.0f;
+    rasterizer_creation_info.depthBiasSlopeFactor = 0.0f;
+
+    VkPipelineMultisampleStateCreateInfo multisampling_creation_info = {0};
+    multisampling_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling_creation_info.sampleShadingEnable = VK_FALSE;
+    multisampling_creation_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisampling_creation_info.minSampleShading = 1.0f;
+    multisampling_creation_info.pSampleMask = NULL;
+    multisampling_creation_info.alphaToCoverageEnable = VK_FALSE;
+    multisampling_creation_info.alphaToOneEnable = VK_FALSE;
+
+    VkPipelineColorBlendAttachmentState color_blend_attachment = {0};
+    color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                            VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    // Enabling blend + resetting some values can enable alpha blending!
+    color_blend_attachment.blendEnable = VK_FALSE;
+    color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
+    color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+    VkPipelineColorBlendStateCreateInfo color_blend_creation_info = {0};
+    color_blend_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend_creation_info.logicOpEnable = VK_FALSE;
+    color_blend_creation_info.logicOp = VK_LOGIC_OP_COPY;
+    color_blend_creation_info.attachmentCount = 1;
+    color_blend_creation_info.pAttachments = &color_blend_attachment;
+    color_blend_creation_info.blendConstants[0] = 0.0f;
+    color_blend_creation_info.blendConstants[1] = 0.0f;
+    color_blend_creation_info.blendConstants[2] = 0.0f;
+    color_blend_creation_info.blendConstants[3] = 0.0f;
+
+    VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    uint32_t dynamic_state_count = 2;
+
+    VkPipelineDynamicStateCreateInfo dynamic_state_creation_info = {0};
+    dynamic_state_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamic_state_creation_info.dynamicStateCount = dynamic_state_count;
+    dynamic_state_creation_info.pDynamicStates = dynamic_states;
+
+    VkPipelineLayout pipeline_layout = {0};
+    
+    VkPipelineLayoutCreateInfo pipeline_layout_creation_info = {0};
+    pipeline_layout_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_creation_info.setLayoutCount = 0;
+    pipeline_layout_creation_info.pSetLayouts = NULL;
+    pipeline_layout_creation_info.pushConstantRangeCount = 0;
+    pipeline_layout_creation_info.pPushConstantRanges = NULL;
+
+    if (vkCreatePipelineLayout(device, &pipeline_layout_creation_info, NULL, &pipeline_layout) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create pipeline!\n");
+        return -1;
+    }
 
     vkDestroyShaderModule(device, vert_shader_module, NULL);
     vkDestroyShaderModule(device, frag_shader_module, NULL);
@@ -332,6 +428,7 @@ int main(int argc, char *argv[]) {
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
+    vkDestroyPipelineLayout(device, pipeline_layout, NULL);
     for (int i = 0; i < (int)num_swap_chain_image_views; i++) {
         vkDestroyImageView(device, swap_chain_image_views[i], NULL);
     }

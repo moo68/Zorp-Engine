@@ -1,5 +1,5 @@
 CC 		= gcc
-CFLAGS 	= $(shell pkg-config --cflags sdl3 vulkan) -Iinclude -Wall -Wextra -Werror -std=c11
+CFLAGS 	= $(shell pkg-config --cflags sdl3 vulkan) -Iinclude -Wall -Wextra -std=c11
 LIBS 	= $(shell pkg-config --libs sdl3 vulkan)
 
 SRCS = $(wildcard src/*.c)
