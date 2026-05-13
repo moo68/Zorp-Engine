@@ -57,6 +57,9 @@ uint32_t num_swap_chain_image_views = 0;
 VkRenderPass render_pass = {0};
 VkPipelineLayout pipeline_layout = {0};
 
+VkFramebuffer *swap_chain_framebuffers = {0};
+uint32_t num_framebuffers = 0;
+
 #ifdef NDEBUG
 const bool enable_validation_layers = false;
 #else
@@ -92,6 +95,8 @@ void create_image_views();
 VkShaderModule create_shader_module(VkDevice device, const char *code, size_t size);
 
 void create_render_pass(VkRenderPass *render_pass);
+
+void create_framebuffers(VkDevice device, VkFramebuffer *framebuffers);
 
 
 // Function definitions:
@@ -137,7 +142,7 @@ int main(int argc, char *argv[]) {
     
     // TODO: Setup custom validation layer callback to filter specific errors.
 
-    // Create a window surface.
+    // Create a surface.
     VkSurfaceKHR surface = {0};
     if (SDL_Vulkan_CreateSurface(window, instance, NULL, &surface) == false) {
         SDL_Log("%s\n", SDL_GetError());
@@ -471,6 +476,28 @@ int main(int argc, char *argv[]) {
     vkDestroyShaderModule(device, vert_shader_module, NULL);
     vkDestroyShaderModule(device, frag_shader_module, NULL);
 
+    // Create framebuffers.
+    num_framebuffers = num_swap_chain_image_views;
+    swap_chain_framebuffers = malloc(num_framebuffers * sizeof(VkFramebuffer));
+
+    for (int i = 0; i < (int)num_framebuffers; i++) {
+        VkImageView attachments[] = { swap_chain_image_views[i] };
+
+        VkFramebufferCreateInfo framebuffer_creation_info = {0};
+        framebuffer_creation_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebuffer_creation_info.renderPass = render_pass;
+        framebuffer_creation_info.attachmentCount = 1;
+        framebuffer_creation_info.pAttachments = attachments;
+        framebuffer_creation_info.width = swap_chain_extent.width;
+        framebuffer_creation_info.height = swap_chain_extent.height;
+        framebuffer_creation_info.layers = 1;
+
+        if (vkCreateFramebuffer(device, &framebuffer_creation_info, NULL, &swap_chain_framebuffers[i]) != VK_SUCCESS) {
+            fprintf(stderr, "Failed to create a framebuffer!\n");
+            return -1;
+        }
+    }
+
     // The render loop:
     bool is_running = true;
     while (is_running == true) {
@@ -487,6 +514,9 @@ int main(int argc, char *argv[]) {
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
+    for (int i = 0; i < (int)num_framebuffers; i++) {
+        vkDestroyFramebuffer(device, swap_chain_framebuffers[i], NULL);
+    }
     vkDestroyPipeline(device, graphics_pipeline, NULL);
     vkDestroyPipelineLayout(device, pipeline_layout, NULL);
     vkDestroyRenderPass(device, render_pass, NULL);
@@ -801,4 +831,26 @@ VkShaderModule create_shader_module(VkDevice device, const char *code, size_t si
 
     return shader_module;
 }
+
+/*void create_framebuffers(VkDevice device, VkFramebuffer *framebuffers) {
+    num_framebuffers = num_swap_chain_image_views;
+    framebuffers = malloc(num_framebuffers * sizeof(VkFramebuffer));
+
+    for (int i = 0; i < (int)num_framebuffers; i++) {
+        VkImageView attachments[] = { swap_chain_image_views[i] };
+
+        VkFramebufferCreateInfo framebuffer_creation_info = {0};
+        framebuffer_creation_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebuffer_creation_info.renderPass = render_pass;
+        framebuffer_creation_info.attachmentCount = 1;
+        framebuffer_creation_info.pAttachments = attachments;
+        framebuffer_creation_info.width = swap_chain_extent.width;
+        framebuffer_creation_info.height = swap_chain_extent.height;
+        framebuffer_creation_info.layers = 1;
+
+        if (vkCreateFramebuffer(device, &framebuffer_creation_info, NULL, &framebuffers[i]) != VK_SUCCESS) {
+            fprintf(stderr, "Failed to create a framebuffer!\n");
+        }
+    }
+}*/
 
