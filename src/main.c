@@ -85,6 +85,8 @@ VkExtent2D choose_swap_extent(const VkSurfaceCapabilitiesKHR *capabilities, SDL_
 
 void create_image_views();
 
+VkShaderModule create_shader_module(VkDevice device, const char *code, size_t size);
+
 
 // Function definitions:
 int main(int argc, char *argv[]) {
@@ -282,6 +284,37 @@ int main(int argc, char *argv[]) {
 
     // Create image views.
     create_image_views(device);
+
+    // Read shaders and crate shader modules.
+    size_t vert_shader_size = 0;
+    char *vert_shader_code = read_shader_file("build/shaders/simple.vert.spv", &vert_shader_size);
+
+    size_t frag_shader_size = 0;
+    char *frag_shader_code = read_shader_file("build/shaders/simple.frag.spv", &frag_shader_size);
+
+    VkShaderModule vert_shader_module = create_shader_module(device, vert_shader_code, vert_shader_size);
+    VkShaderModule frag_shader_module = create_shader_module(device, frag_shader_code, frag_shader_size);
+
+    // Create shader stages.
+    VkPipelineShaderStageCreateInfo vert_shader_stage_creation_info = {0};
+    vert_shader_stage_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vert_shader_stage_creation_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vert_shader_stage_creation_info.module = vert_shader_module;
+    vert_shader_stage_creation_info.pName = "main";
+
+    VkPipelineShaderStageCreateInfo frag_shader_stage_creation_info = {0};
+    frag_shader_stage_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    frag_shader_stage_creation_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    frag_shader_stage_creation_info.module = frag_shader_module;
+    frag_shader_stage_creation_info.pName = "main";
+
+    VkPipelineShaderStageCreateInfo shader_stages[] = {vert_shader_stage_creation_info, frag_shader_stage_creation_info};
+    (void)shader_stages;
+
+    // More graphics pipeline:
+
+    vkDestroyShaderModule(device, vert_shader_module, NULL);
+    vkDestroyShaderModule(device, frag_shader_module, NULL);
 
     // The render loop:
     bool is_running = true;
@@ -595,5 +628,19 @@ void create_image_views(VkDevice device) {
             fprintf(stderr, "Failed to create an image view!\n");
         }
     }
+}
+
+VkShaderModule create_shader_module(VkDevice device, const char *code, size_t size) {
+    VkShaderModuleCreateInfo shader_module_creation_info = {0};
+    shader_module_creation_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shader_module_creation_info.codeSize = size;
+    shader_module_creation_info.pCode = (uint32_t *)code;
+
+    VkShaderModule shader_module = {0};
+    if (vkCreateShaderModule(device, &shader_module_creation_info, NULL, &shader_module) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create a shader module!\n");
+    }
+
+    return shader_module;
 }
 
