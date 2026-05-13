@@ -98,6 +98,8 @@ void create_render_pass(VkRenderPass *render_pass);
 
 void create_framebuffers(VkDevice device, VkFramebuffer *framebuffers);
 
+void record_command_buffer(VkCommandBuffer command_buffer, VkPipeline graphics_pipeline, uint32_t image_index);
+
 
 // Function definitions:
 int main(int argc, char *argv[]) {
@@ -365,19 +367,7 @@ int main(int argc, char *argv[]) {
     input_assembly_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     input_assembly_creation_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     input_assembly_creation_info.primitiveRestartEnable = VK_FALSE; 
-
-    VkViewport viewport = {0};
-    viewport.x = 0.0f;
-    viewport.y = 0.0f;
-    viewport.width = (float)(swap_chain_extent.width);
-    viewport.height = (float)(swap_chain_extent.height);
-    viewport.minDepth = 0.0f;
-    viewport.maxDepth = 1.0f;
-
-    VkRect2D scissor = {0};
-    scissor.offset = (VkOffset2D){0, 0};
-    scissor.extent = swap_chain_extent;
-
+ 
     VkPipelineViewportStateCreateInfo viewport_state_creation_info = {0};
     viewport_state_creation_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewport_state_creation_info.viewportCount = 1;
@@ -509,7 +499,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // Create and record command buffer.
+    // Create a command buffer.
     VkCommandBuffer command_buffer = {0};
     VkCommandBufferAllocateInfo buffer_alloc_info = {0};
     buffer_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -520,15 +510,8 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Failed to create a command buffer!\n");
         return -1;
     }
-
-    VkCommandBufferBeginInfo command_buffer_begin_info = {0};
-    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.flags = 0;
-    command_buffer_begin_info.pInheritanceInfo = NULL;
-    if (vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to begin recording command buffer!\n");
-        return -1;
-    }
+ 
+    //record_command_buffer(command_buffer, graphics_pipeline, image_index);
 
     // The render loop:
     bool is_running = true;
@@ -863,5 +846,52 @@ VkShaderModule create_shader_module(VkDevice device, const char *code, size_t si
     }
 
     return shader_module;
+}
+
+void record_command_buffer(VkCommandBuffer command_buffer, VkPipeline graphics_pipeline, uint32_t image_index) {
+    VkCommandBufferBeginInfo command_buffer_begin_info = {0};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = 0;
+    command_buffer_begin_info.pInheritanceInfo = NULL;
+    if (vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to begin recording command buffer!\n");
+    }
+
+    // Start render pass.
+    VkRenderPassBeginInfo render_pass_begin_info = {0};
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.renderPass = render_pass;
+    render_pass_begin_info.framebuffer = swap_chain_framebuffers[image_index];
+    render_pass_begin_info.renderArea.offset = (VkOffset2D){0, 0};
+    render_pass_begin_info.renderArea.extent = swap_chain_extent;
+    VkClearValue clear_color = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+    render_pass_begin_info.clearValueCount = 1;
+    render_pass_begin_info.pClearValues = &clear_color;
+
+    vkCmdBeginRenderPass(command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphics_pipeline);
+
+    VkViewport viewport = {0};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float)(swap_chain_extent.width);
+    viewport.height = (float)(swap_chain_extent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+    VkRect2D scissor = {0};
+    scissor.offset = (VkOffset2D){0, 0};
+    scissor.extent = swap_chain_extent;
+    vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+    vkCmdDraw(command_buffer, 3, 1, 0, 0);
+
+    vkCmdEndRenderPass(command_buffer);
+
+    if (vkEndCommandBuffer(command_buffer) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to record a command buffer!\n");
+    }
 }
 
