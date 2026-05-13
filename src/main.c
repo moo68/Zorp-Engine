@@ -498,6 +498,38 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    // Create command pool. 
+    VkCommandPool command_pool = {0};
+    VkCommandPoolCreateInfo command_pool_creation_info = {0};
+    command_pool_creation_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    command_pool_creation_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    command_pool_creation_info.queueFamilyIndex = indices.graphics_family;
+    if (vkCreateCommandPool(device, &command_pool_creation_info, NULL, &command_pool) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create command pool!\n");
+        return -1;
+    }
+
+    // Create and record command buffer.
+    VkCommandBuffer command_buffer = {0};
+    VkCommandBufferAllocateInfo buffer_alloc_info = {0};
+    buffer_alloc_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    buffer_alloc_info.commandPool = command_pool;
+    buffer_alloc_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    buffer_alloc_info.commandBufferCount = 1;
+    if (vkAllocateCommandBuffers(device, &buffer_alloc_info, &command_buffer) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create a command buffer!\n");
+        return -1;
+    }
+
+    VkCommandBufferBeginInfo command_buffer_begin_info = {0};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = 0;
+    command_buffer_begin_info.pInheritanceInfo = NULL;
+    if (vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to begin recording command buffer!\n");
+        return -1;
+    }
+
     // The render loop:
     bool is_running = true;
     while (is_running == true) {
@@ -514,6 +546,7 @@ int main(int argc, char *argv[]) {
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
+    vkDestroyCommandPool(device, command_pool, NULL);
     for (int i = 0; i < (int)num_framebuffers; i++) {
         vkDestroyFramebuffer(device, swap_chain_framebuffers[i], NULL);
     }
@@ -831,26 +864,4 @@ VkShaderModule create_shader_module(VkDevice device, const char *code, size_t si
 
     return shader_module;
 }
-
-/*void create_framebuffers(VkDevice device, VkFramebuffer *framebuffers) {
-    num_framebuffers = num_swap_chain_image_views;
-    framebuffers = malloc(num_framebuffers * sizeof(VkFramebuffer));
-
-    for (int i = 0; i < (int)num_framebuffers; i++) {
-        VkImageView attachments[] = { swap_chain_image_views[i] };
-
-        VkFramebufferCreateInfo framebuffer_creation_info = {0};
-        framebuffer_creation_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-        framebuffer_creation_info.renderPass = render_pass;
-        framebuffer_creation_info.attachmentCount = 1;
-        framebuffer_creation_info.pAttachments = attachments;
-        framebuffer_creation_info.width = swap_chain_extent.width;
-        framebuffer_creation_info.height = swap_chain_extent.height;
-        framebuffer_creation_info.layers = 1;
-
-        if (vkCreateFramebuffer(device, &framebuffer_creation_info, NULL, &framebuffers[i]) != VK_SUCCESS) {
-            fprintf(stderr, "Failed to create a framebuffer!\n");
-        }
-    }
-}*/
 
