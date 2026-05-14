@@ -70,14 +70,6 @@ const bool enable_validation_layers = true;
 
 
 // Function prototypes:
-//VkApplicationInfo create_app_info(void);
-
-//VkInstanceCreateInfo create_instance_creation_info(
-    //VkApplicationInfo *app_info,
-    //VkDebugUtilsMessengerCreateInfoEXT *debug_creation_info);
-
-bool are_validation_layers_supported(void);
-
 bool is_device_suitable(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 QueueFamilyIndices find_queue_families(VkPhysicalDevice device, VkSurfaceKHR surface);
@@ -129,25 +121,16 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // Create a Vulkan instance.
-    /*VkInstance instance = {0};
-    VkApplicationInfo app_info = create_app_info();
-    VkDebugUtilsMessengerCreateInfoEXT debug_creation_info = {0};
-    debug_creation_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    VkInstanceCreateInfo creation_info = create_instance_creation_info(&app_info, &debug_creation_info);
-
-    if (vkCreateInstance(&creation_info, NULL, &instance) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create Vulkan instance!\n");
-    }*/
-    VkInstance instance = create_instance();
-
-    // TODO: Insert all the stuff to enumerate through extensions here.
-
     // Check validation layers.
     if ((enable_validation_layers == true) && (are_validation_layers_supported() == false)) {
         fprintf(stderr, "Could not properly find all Vulkan validation layers!\n");
         return -1;
     }
+
+    // Create a Vulkan instance.
+    VkInstance instance = create_instance();
+
+    // TODO: Insert all the stuff to enumerate through extensions here.
     
     // TODO: Setup custom validation layer callback to filter specific errors.
 
@@ -635,92 +618,6 @@ int main(int argc, char *argv[]) {
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
-}
-
-/*VkApplicationInfo create_app_info(void) {
-    VkApplicationInfo app_info = {0};
-    app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app_info.pApplicationName = "ZorpEngine";
-    app_info.applicationVersion = VK_MAKE_VERSION(0, 0, 1);
-    app_info.pEngineName = "ZorpEngine";
-    app_info.engineVersion = VK_MAKE_VERSION(0, 0, 1);
-    app_info.apiVersion = VK_API_VERSION_1_3;
-    app_info.pNext = NULL;
-
-    return app_info;
-}*/
-
-/*VkInstanceCreateInfo create_instance_creation_info(
-    VkApplicationInfo *app_info,
-    VkDebugUtilsMessengerCreateInfoEXT *debug_creation_info) {
-
-    VkInstanceCreateInfo creation_info = {0};
-    creation_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    creation_info.pApplicationInfo = app_info;
-
-    // Get the number of extensions for the Vulkan instance.
-    uint32_t count_instance_extensions = 0;
-    const char * const *instance_extensions = SDL_Vulkan_GetInstanceExtensions(&count_instance_extensions);
-    if (instance_extensions == NULL) {
-        SDL_Log("%s\n", SDL_GetError());
-        SDL_ClearError();
-        // Is this something to abort program over?
-    }
-
-    // Actually set the app_info struct's extensions.
-    int count_extensions = count_instance_extensions + 1;
-    const char **extensions = SDL_malloc(count_extensions * sizeof(const char *));
-    extensions[0] = VK_EXT_DEBUG_REPORT_EXTENSION_NAME;
-    SDL_memcpy(&extensions[1], instance_extensions, count_instance_extensions * sizeof(const char *));
-
-    creation_info.enabledExtensionCount = count_extensions;
-    creation_info.ppEnabledExtensionNames = extensions;
-
-    // TODO: Rename num_validation layers to validation_layers_count to be more consistent?
-    // If using validation layers, pNext should use the given debug creation info.
-    if (enable_validation_layers == true) {
-        creation_info.enabledLayerCount = validation_layer_count;
-        creation_info.ppEnabledLayerNames = validation_layers;
-        creation_info.pNext = debug_creation_info;
-    }
-    else {
-        creation_info.enabledLayerCount = 0;
-        creation_info.ppEnabledLayerNames = NULL;
-        creation_info.pNext = NULL;
-    }
-
-    // SDL_free(extensions)?
-    return creation_info;
-}*/
-
-bool are_validation_layers_supported(void) {
-    uint32_t layer_count = 0;
-    vkEnumerateInstanceLayerProperties(&layer_count, NULL);
-    if (layer_count == 0) {
-        return true;
-    }
-
-    VkLayerProperties *available_layers = malloc(layer_count * sizeof(VkLayerProperties));
-    vkEnumerateInstanceLayerProperties(&layer_count, available_layers);
-
-    for (int i = 0; i < validation_layer_count; i++) {
-        bool layer_found = false;
-        const char *curr_validation_layer = validation_layers[i];
-
-        for (int j = 0; j < (int)layer_count; j++) {
-            VkLayerProperties curr_available_layer = available_layers[j];
-            if (strcmp(curr_validation_layer, curr_available_layer.layerName) == 0) {
-                layer_found = true;
-                break;
-            }
-        }
-
-        if (layer_found == false) {
-            return false;
-        }
-    }
-
-    return true;
 }
 
 // TODO: Actually rank devices based on characteristics and return the highest one.

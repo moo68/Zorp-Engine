@@ -8,6 +8,7 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 
@@ -110,5 +111,42 @@ VkInstanceCreateInfo create_instance_info(VkApplicationInfo *app_info,
     }
 
     return instance_info;
+}
+
+/*
+ * Return whether or not all the validation layers specified in the global
+ * validation_layers array are actually supported.
+ */
+bool are_validation_layers_supported(void) {
+    uint32_t layer_count = 0;
+    vkEnumerateInstanceLayerProperties(&layer_count, NULL);
+    if (layer_count == 0) {
+        return true;
+    }
+
+    VkLayerProperties *available_layers = malloc(layer_count *
+                                                 sizeof(VkLayerProperties));
+    vkEnumerateInstanceLayerProperties(&layer_count, available_layers);
+
+    for (int i = 0; i < validation_layer_count; i++) {
+        bool layer_found = false;
+        const char *curr_validation_layer = validation_layers[i];
+
+        for (int j = 0; j < (int)layer_count; j++) {
+            VkLayerProperties curr_available_layer = available_layers[j];
+            if (strcmp(curr_validation_layer, curr_available_layer.layerName) == 0) {
+                layer_found = true;
+                break;
+            }
+        }
+
+        if (layer_found == false) {
+            return false;
+        }
+    }
+
+    free(available_layers);
+
+    return true;
 }
 
