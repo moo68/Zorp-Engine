@@ -1,8 +1,8 @@
 CC 		= gcc
-CFLAGS 	= $(shell pkg-config --cflags sdl3 vulkan) -Iinclude -Wall -Wextra -std=c11
+CFLAGS 	= $(shell pkg-config --cflags sdl3 vulkan) -Iinclude -Wall -Werror -Wextra -std=c11
 LIBS 	= $(shell pkg-config --libs sdl3 vulkan)
 
-SRCS = $(wildcard src/*.c)
+SRCS = $(wildcard src/*.c) $(wildcard src/Vulkan/*.c)
 
 SHADER_DIR = assets/shaders
 SHADER_OUT = build/shaders

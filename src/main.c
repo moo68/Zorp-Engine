@@ -1,4 +1,3 @@
-// REMINDER: RE_ENABLE -Werror soon!!!!
 #include <vulkan/vulkan.h>
 
 #include <SDL3/SDL.h>
@@ -6,6 +5,7 @@
 #include <SDL3/SDL_log.h>
 #include <SDL3/SDL_vulkan.h>
 
+#include "ZorpEngine/Vulkan/instance.h"
 #include "ZorpEngine/shader_utils.h"
 
 #include <stdlib.h>
@@ -36,7 +36,7 @@ typedef struct {
 
 
 // Global variables:
-const int num_validation_layers = 1;
+const int validation_layer_count = 1;
 const char *validation_layers[] = {
     "VK_LAYER_KHRONOS_validation"
 };
@@ -60,6 +60,8 @@ VkPipelineLayout pipeline_layout = {0};
 VkFramebuffer *swap_chain_framebuffers = {0};
 uint32_t num_framebuffers = 0;
 
+const int MAX_FRAMES_IN_FLIGHT = 2;
+
 #ifdef NDEBUG
 const bool enable_validation_layers = false;
 #else
@@ -68,11 +70,11 @@ const bool enable_validation_layers = true;
 
 
 // Function prototypes:
-VkApplicationInfo create_app_info(void);
+//VkApplicationInfo create_app_info(void);
 
-VkInstanceCreateInfo create_instance_creation_info(
-    VkApplicationInfo *app_info,
-    VkDebugUtilsMessengerCreateInfoEXT *debug_creation_info);
+//VkInstanceCreateInfo create_instance_creation_info(
+    //VkApplicationInfo *app_info,
+    //VkDebugUtilsMessengerCreateInfoEXT *debug_creation_info);
 
 bool are_validation_layers_supported(void);
 
@@ -128,7 +130,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Create a Vulkan instance.
-    VkInstance instance = {0};
+    /*VkInstance instance = {0};
     VkApplicationInfo app_info = create_app_info();
     VkDebugUtilsMessengerCreateInfoEXT debug_creation_info = {0};
     debug_creation_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -136,7 +138,8 @@ int main(int argc, char *argv[]) {
 
     if (vkCreateInstance(&creation_info, NULL, &instance) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create Vulkan instance!\n");
-    }
+    }*/
+    VkInstance instance = create_instance();
 
     // TODO: Insert all the stuff to enumerate through extensions here.
 
@@ -226,7 +229,7 @@ int main(int argc, char *argv[]) {
     device_creation_info.enabledExtensionCount = (uint32_t)num_device_extensions;
     device_creation_info.ppEnabledExtensionNames = device_extensions;
     if (enable_validation_layers == true) {
-        device_creation_info.enabledLayerCount = (uint32_t)num_validation_layers;
+        device_creation_info.enabledLayerCount = (uint32_t)validation_layer_count;
         device_creation_info.ppEnabledLayerNames = validation_layers;
     }
     else {
@@ -606,6 +609,7 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Failing to present!\n");
         }
     }
+    vkDeviceWaitIdle(device);
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
@@ -633,7 +637,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-VkApplicationInfo create_app_info(void) {
+/*VkApplicationInfo create_app_info(void) {
     VkApplicationInfo app_info = {0};
     app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
     app_info.pApplicationName = "ZorpEngine";
@@ -644,9 +648,9 @@ VkApplicationInfo create_app_info(void) {
     app_info.pNext = NULL;
 
     return app_info;
-}
+}*/
 
-VkInstanceCreateInfo create_instance_creation_info(
+/*VkInstanceCreateInfo create_instance_creation_info(
     VkApplicationInfo *app_info,
     VkDebugUtilsMessengerCreateInfoEXT *debug_creation_info) {
 
@@ -675,7 +679,7 @@ VkInstanceCreateInfo create_instance_creation_info(
     // TODO: Rename num_validation layers to validation_layers_count to be more consistent?
     // If using validation layers, pNext should use the given debug creation info.
     if (enable_validation_layers == true) {
-        creation_info.enabledLayerCount = num_validation_layers;
+        creation_info.enabledLayerCount = validation_layer_count;
         creation_info.ppEnabledLayerNames = validation_layers;
         creation_info.pNext = debug_creation_info;
     }
@@ -687,7 +691,7 @@ VkInstanceCreateInfo create_instance_creation_info(
 
     // SDL_free(extensions)?
     return creation_info;
-}
+}*/
 
 bool are_validation_layers_supported(void) {
     uint32_t layer_count = 0;
@@ -699,7 +703,7 @@ bool are_validation_layers_supported(void) {
     VkLayerProperties *available_layers = malloc(layer_count * sizeof(VkLayerProperties));
     vkEnumerateInstanceLayerProperties(&layer_count, available_layers);
 
-    for (int i = 0; i < num_validation_layers; i++) {
+    for (int i = 0; i < validation_layer_count; i++) {
         bool layer_found = false;
         const char *curr_validation_layer = validation_layers[i];
 
