@@ -94,8 +94,6 @@ void create_image_views();
 
 VkShaderModule create_shader_module(VkDevice device, const char *code, size_t size);
 
-void create_render_pass(VkRenderPass *render_pass);
-
 void create_framebuffers(VkDevice device, VkFramebuffer *framebuffers);
 
 void record_command_buffer(VkCommandBuffer command_buffer, VkPipeline graphics_pipeline, uint32_t image_index);
@@ -118,6 +116,12 @@ int main(int argc, char *argv[]) {
     // Create a window.
     SDL_Window *window = SDL_CreateWindow("ZorpEngine", 1200, 800, SDL_WINDOW_VULKAN);
     if (window == NULL) {
+        SDL_Log("%s\n", SDL_GetError());
+        SDL_ClearError();
+        return -1;
+    }
+    SDL_Log("Video driver: %s", SDL_GetCurrentVideoDriver());
+    if (SDL_ShowWindow(window) == false) {
         SDL_Log("%s\n", SDL_GetError());
         SDL_ClearError();
         return -1;
@@ -317,12 +321,22 @@ int main(int argc, char *argv[]) {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
 
+    VkSubpassDependency dependency = {0};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
     VkRenderPassCreateInfo render_pass_creation_info = {0};
     render_pass_creation_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     render_pass_creation_info.attachmentCount = 1;
     render_pass_creation_info.pAttachments = &color_attachment;
     render_pass_creation_info.subpassCount = 1;
     render_pass_creation_info.pSubpasses = &subpass;
+    render_pass_creation_info.dependencyCount = 1;
+    render_pass_creation_info.pDependencies = &dependency;
 
     if (vkCreateRenderPass(device, &render_pass_creation_info, NULL, &render_pass) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create a render pass!\n");
@@ -379,7 +393,7 @@ int main(int argc, char *argv[]) {
     rasterizer_creation_info.rasterizerDiscardEnable = VK_FALSE;
     rasterizer_creation_info.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer_creation_info.lineWidth = 1.0f;
-    rasterizer_creation_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer_creation_info.cullMode = /*VK_CULL_MODE_BACK_BIT*/VK_CULL_MODE_NONE;
     rasterizer_creation_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer_creation_info.depthBiasEnable = VK_FALSE;
     rasterizer_creation_info.depthBiasConstantFactor = 0.0f;
@@ -511,12 +525,37 @@ int main(int argc, char *argv[]) {
         return -1;
     }
  
-    //record_command_buffer(command_buffer, graphics_pipeline, image_index);
+    // Create synchronization objects.
+    VkSemaphore image_available_semaphore = {0};
+    VkSemaphore render_finished_semaphore = {0};
+    VkFence in_flight_fence = {0};
 
+    VkSemaphoreCreateInfo semaphore_creation_info = {0};
+    semaphore_creation_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    VkFenceCreateInfo fence_creation_info = {0};
+    fence_creation_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_creation_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    if (vkCreateSemaphore(device, &semaphore_creation_info, NULL, &image_available_semaphore) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create semaphore!\n");
+        return -1;
+    }
+    if (vkCreateSemaphore(device, &semaphore_creation_info, NULL, &render_finished_semaphore) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create semaphore!\n");
+        return -1;
+    }
+    if (vkCreateFence(device, &fence_creation_info, NULL, &in_flight_fence) != VK_SUCCESS) {
+        fprintf(stderr, "Failed to create fence!\n");
+        return -1;
+    }
+    
     // The render loop:
+    printf("Entering render loop!\n");
     bool is_running = true;
+    SDL_Event event;
     while (is_running == true) {
-        SDL_Event event;
+        //SDL_Event event;
 
         // Poll events.
         while (SDL_PollEvent(&event) == true) {
@@ -524,11 +563,55 @@ int main(int argc, char *argv[]) {
                 is_running = false;
             }
         }
-        //printf("Looping!\n");
+
+        // Draw a frame!!!
+        vkWaitForFences(device, 1, &in_flight_fence, VK_TRUE, UINT64_MAX);
+        vkResetFences(device, 1, &in_flight_fence);
+
+        uint32_t image_index;
+        vkAcquireNextImageKHR(device, swap_chain, UINT64_MAX, image_available_semaphore, VK_NULL_HANDLE, &image_index);
+
+        vkResetCommandBuffer(command_buffer, 0);
+        record_command_buffer(command_buffer, graphics_pipeline, image_index);
+
+        VkSubmitInfo submit_info = {0};
+        submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        VkSemaphore wait_semaphores[] = {image_available_semaphore};
+        VkPipelineStageFlags wait_stages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        submit_info.waitSemaphoreCount = 1;
+        submit_info.pWaitSemaphores = wait_semaphores;
+        submit_info.pWaitDstStageMask = wait_stages;
+        submit_info.commandBufferCount = 1;
+        submit_info.pCommandBuffers = &command_buffer;
+        VkSemaphore signal_semaphores[] = {render_finished_semaphore};
+        submit_info.signalSemaphoreCount = 1;
+        submit_info.pSignalSemaphores = signal_semaphores;
+
+        if (vkQueueSubmit(graphics_queue, 1, &submit_info, in_flight_fence) != VK_SUCCESS) {
+            fprintf(stderr, "Failed to submit graphics queue!\n");
+            return -1;
+        }
+
+        VkPresentInfoKHR present_info = {0};
+        present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        present_info.waitSemaphoreCount = 1;
+        present_info.pWaitSemaphores = signal_semaphores;
+        VkSwapchainKHR swapchains[] = {swap_chain};
+        present_info.swapchainCount = 1;
+        present_info.pSwapchains = swapchains;
+        present_info.pImageIndices = &image_index;
+        present_info.pResults = NULL;
+
+        if (vkQueuePresentKHR(present_queue, &present_info) != VK_SUCCESS) {
+            fprintf(stderr, "Failing to present!\n");
+        }
     }
 
     // Shutdown and clean up Vulkan.
     //SDL_free(extensions); Figure out where exactly this should go?
+    vkDestroySemaphore(device, image_available_semaphore, NULL);
+    vkDestroySemaphore(device, render_finished_semaphore, NULL);
+    vkDestroyFence(device, in_flight_fence, NULL);
     vkDestroyCommandPool(device, command_pool, NULL);
     for (int i = 0; i < (int)num_framebuffers; i++) {
         vkDestroyFramebuffer(device, swap_chain_framebuffers[i], NULL);
