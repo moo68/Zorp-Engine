@@ -7,6 +7,7 @@
 
 #include "ZorpEngine/Vulkan/instance.h"
 #include "ZorpEngine/Vulkan/physical_device.h"
+#include "ZorpEngine/Vulkan/logical_device.h"
 #include "ZorpEngine/shader_utils.h"
 
 #include <stdlib.h>
@@ -119,66 +120,18 @@ int main(int argc, char *argv[]) {
 
     // Choose a physical device.
     VkPhysicalDevice physical_device = pick_physical_device(instance, surface);
+    QueueFamilyIndices queue_families = find_queue_families(physical_device,
+                                                            surface);
 
     // Create a logical device.
-    VkDevice device = {0};
-
-    QueueFamilyIndices indices = find_queue_families(physical_device, surface);
-    VkDeviceQueueCreateInfo queue_creation_infos[2] = {0};
-    float queue_priority = 1.0f;
-    uint32_t queue_creation_info_count = 0;
-
-    // TODO: This should be more robust once we need to handle more than 2 queues.
-    if (indices.graphics_family == indices.present_family) {
-        // If the graphics queue and the present queue are the same, just use it.
-        queue_creation_infos[0] = (VkDeviceQueueCreateInfo){
-            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = indices.graphics_family,
-            .queueCount = 1,
-            .pQueuePriorities = &queue_priority
-        };
-        queue_creation_info_count = 1;
-    }
-    else {
-        // If the graphics queue and the present queue are different, create different queues.
-        queue_creation_infos[0] = (VkDeviceQueueCreateInfo){
-            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = indices.graphics_family,
-            .queueCount = 1,
-            .pQueuePriorities = &queue_priority
-        };
-        queue_creation_infos[1] = (VkDeviceQueueCreateInfo){
-            .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-            .queueFamilyIndex = indices.present_family,
-            .queueCount = 1,
-            .pQueuePriorities = &queue_priority
-        };
-        queue_creation_info_count = 2;
-    }
-
-    VkPhysicalDeviceFeatures device_features = {0};
-
-    VkDeviceCreateInfo device_creation_info = {0};
-    device_creation_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    device_creation_info.pQueueCreateInfos = queue_creation_infos;
-    device_creation_info.queueCreateInfoCount = queue_creation_info_count;
-    device_creation_info.pEnabledFeatures = &device_features;
-    device_creation_info.enabledExtensionCount = (uint32_t)device_extension_count;
-    device_creation_info.ppEnabledExtensionNames = device_extensions;
-    device_creation_info.enabledLayerCount = 0;
-    device_creation_info.ppEnabledLayerNames = NULL;
-
-    if (vkCreateDevice(physical_device, &device_creation_info, NULL, &device) != VK_SUCCESS) {
-        fprintf(stderr, "Failed to create a logical device!\n");
-        return -1;
-    }
+    VkDevice device = create_logical_device(physical_device, queue_families);
 
     // Create queue handles.
     VkQueue graphics_queue = {0};
-    vkGetDeviceQueue(device, indices.graphics_family, 0, &graphics_queue);
+    vkGetDeviceQueue(device, queue_families.graphics_family, 0, &graphics_queue);
 
     VkQueue present_queue = {0};
-    vkGetDeviceQueue(device, indices.present_family, 0, &present_queue);
+    vkGetDeviceQueue(device, queue_families.present_family, 0, &present_queue);
 
     // Create the swap chain.
     SwapChainSupportDetails swap_chain_support = query_swap_chain_support(physical_device, surface);
@@ -201,8 +154,8 @@ int main(int argc, char *argv[]) {
     swap_chain_creation_info.imageArrayLayers = 1;
     swap_chain_creation_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
-    uint32_t queue_family_indices[2] = {indices.graphics_family, indices.present_family};
-    if (indices.graphics_family != indices.present_family) {
+    uint32_t queue_family_indices[2] = {queue_families.graphics_family, queue_families.present_family};
+    if (queue_families.graphics_family != queue_families.present_family) {
         swap_chain_creation_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         swap_chain_creation_info.queueFamilyIndexCount = 2;
         swap_chain_creation_info.pQueueFamilyIndices = queue_family_indices;
@@ -441,7 +394,7 @@ int main(int argc, char *argv[]) {
     VkCommandPoolCreateInfo command_pool_creation_info = {0};
     command_pool_creation_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     command_pool_creation_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-    command_pool_creation_info.queueFamilyIndex = indices.graphics_family;
+    command_pool_creation_info.queueFamilyIndex = queue_families.graphics_family;
     if (vkCreateCommandPool(device, &command_pool_creation_info, NULL, &command_pool) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create command pool!\n");
         return -1;
