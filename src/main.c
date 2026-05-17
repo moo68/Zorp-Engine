@@ -6,6 +6,7 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include "ZorpEngine/Vulkan/instance.h"
+#include "ZorpEngine/Vulkan/physical_device.h"
 #include "ZorpEngine/shader_utils.h"
 
 #include <stdlib.h>
@@ -15,33 +16,13 @@
 #include <limits.h>
 
 
-// Structs:
-typedef struct {
-    uint32_t graphics_family;
-    bool graphics_family_found;
-
-    uint32_t present_family;
-    bool present_family_found;
-} QueueFamilyIndices;
-
-typedef struct {
-    VkSurfaceCapabilitiesKHR capabilities;
-
-    VkSurfaceFormatKHR *formats;
-    uint32_t num_formats;
-
-    VkPresentModeKHR *present_modes;
-    uint32_t num_present_modes;
-} SwapChainSupportDetails;
-
-
 // Global variables:
 const int validation_layer_count = 1;
 const char *validation_layers[] = {
     "VK_LAYER_KHRONOS_validation"
 };
 
-const int num_device_extensions = 1;
+const int device_extension_count = 1;
 const char *device_extensions[] = {
     "VK_KHR_swapchain"
 };
@@ -70,12 +51,6 @@ const bool enable_validation_layers = true;
 
 
 // Function prototypes:
-bool is_device_suitable(VkPhysicalDevice device, VkSurfaceKHR surface);
-
-QueueFamilyIndices find_queue_families(VkPhysicalDevice device, VkSurfaceKHR surface);
-
-bool check_device_extension_support(VkPhysicalDevice device);
-
 SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice device, VkSurfaceKHR surface);
 
 VkSurfaceFormatKHR choose_swap_surface_format(VkSurfaceFormatKHR *formats, uint32_t num_formats);
@@ -98,6 +73,7 @@ int main(int argc, char *argv[]) {
     (void)argc;
     (void)argv;
 
+    // TODO: Properly set SDL_Log() function to different severity levels.
     // Initialize SDL.
     if (SDL_Init(SDL_INIT_VIDEO) == false) {
         SDL_Log("%s\n", SDL_GetError());
@@ -114,7 +90,6 @@ int main(int argc, char *argv[]) {
         SDL_ClearError();
         return -1;
     }
-    SDL_Log("Video driver: %s", SDL_GetCurrentVideoDriver());
     if (SDL_ShowWindow(window) == false) {
         SDL_Log("%s\n", SDL_GetError());
         SDL_ClearError();
@@ -143,28 +118,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Choose a physical device.
-    VkPhysicalDevice physical_device = VK_NULL_HANDLE;
-    uint32_t device_count = 0;
-    vkEnumeratePhysicalDevices(instance, &device_count, NULL);
-    if (device_count == 0) {
-        fprintf(stderr, "Failed to find Vulkan-compatible GPU!\n");
-        return -1;
-    }
-
-    VkPhysicalDevice *devices = malloc(device_count * sizeof(VkPhysicalDevice));
-    vkEnumeratePhysicalDevices(instance, &device_count, devices);
-
-    for (int i = 0; i < (int)device_count; i++) {
-        VkPhysicalDevice curr_device = devices[i];
-        if (is_device_suitable(curr_device, surface) == true) {
-            physical_device = curr_device;
-            break;
-        }
-    }
-    if (physical_device == VK_NULL_HANDLE) {
-        fprintf(stderr, "Failed to find a suitable GPU!\n");
-        return -1;
-    }
+    VkPhysicalDevice physical_device = pick_physical_device(instance, surface);
 
     // Create a logical device.
     VkDevice device = {0};
@@ -209,16 +163,10 @@ int main(int argc, char *argv[]) {
     device_creation_info.pQueueCreateInfos = queue_creation_infos;
     device_creation_info.queueCreateInfoCount = queue_creation_info_count;
     device_creation_info.pEnabledFeatures = &device_features;
-    device_creation_info.enabledExtensionCount = (uint32_t)num_device_extensions;
+    device_creation_info.enabledExtensionCount = (uint32_t)device_extension_count;
     device_creation_info.ppEnabledExtensionNames = device_extensions;
-    if (enable_validation_layers == true) {
-        device_creation_info.enabledLayerCount = (uint32_t)validation_layer_count;
-        device_creation_info.ppEnabledLayerNames = validation_layers;
-    }
-    else {
-        device_creation_info.enabledLayerCount = 0;
-        device_creation_info.ppEnabledLayerNames = NULL;
-    }
+    device_creation_info.enabledLayerCount = 0;
+    device_creation_info.ppEnabledLayerNames = NULL;
 
     if (vkCreateDevice(physical_device, &device_creation_info, NULL, &device) != VK_SUCCESS) {
         fprintf(stderr, "Failed to create a logical device!\n");
@@ -618,121 +566,6 @@ int main(int argc, char *argv[]) {
     SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
-}
-
-// TODO: Actually rank devices based on characteristics and return the highest one.
-// TODO: That probably wouldn't be implemented in this function. But still.
-// TODO: We should prefer physical devices where the graphics family and present family are the same.
-bool is_device_suitable(VkPhysicalDevice device, VkSurfaceKHR surface) {
-    VkPhysicalDeviceProperties device_properties = {0};
-    vkGetPhysicalDeviceProperties(device, &device_properties);
-    VkPhysicalDeviceFeatures device_features = {0};
-    vkGetPhysicalDeviceFeatures(device, &device_features);
-
-    // TODO: This shouldn't actually be a literal hard requirement.
-    if (device_properties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-        return false;
-    }
-
-    QueueFamilyIndices family_indices = find_queue_families(device, surface);
-    if (family_indices.graphics_family_found == false) {
-        return false;
-    }
-
-    if (check_device_extension_support(device) == false) {
-        return false;
-    }
-    else {
-        SwapChainSupportDetails swap_chain_support = query_swap_chain_support(device, surface);
-        if ((swap_chain_support.num_formats == 0) || (swap_chain_support.num_present_modes == 0)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-QueueFamilyIndices find_queue_families(VkPhysicalDevice device, VkSurfaceKHR surface) {
-    QueueFamilyIndices indices = {0};
-
-    // Get the number of families and each family's struct.
-    uint32_t queue_family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, NULL);
-    VkQueueFamilyProperties *queue_families = malloc(queue_family_count * sizeof(VkQueueFamilyProperties));
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queue_families);
-
-    // Iterate through the array of families and set indices accordingly.
-    for (int i = 0; i < (int)queue_family_count; i++) {
-        VkQueueFamilyProperties curr_queue_family = queue_families[i];
-        if ((curr_queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) == 1) {
-            indices.graphics_family = i;
-            indices.graphics_family_found = true;
-        }
-
-        VkBool32 present_support = false;
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, i, surface, &present_support);
-        if (present_support == true) {
-            indices.present_family = i;
-            indices.present_family_found = true;
-        }
-    }
-
-    // free(queue_families)?
-    return indices;
-}
-
-bool check_device_extension_support(VkPhysicalDevice device) {
-    uint32_t extension_count = 0;
-    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, NULL);
-    if (extension_count == 0) {
-        return false;
-    }
-
-    VkExtensionProperties *available_extensions = malloc(extension_count * sizeof(VkExtensionProperties));
-    vkEnumerateDeviceExtensionProperties(device, NULL, &extension_count, available_extensions);
-
-    for (int i = 0; i < num_device_extensions; i++) {
-        bool extension_found = false;
-        const char *curr_extension = device_extensions[i];
-
-        for (int j = 0; j < (int)extension_count; j++) {
-            VkExtensionProperties curr_available_extension = available_extensions[j];
-            if (strcmp(curr_extension, curr_available_extension.extensionName) == 0) {
-                extension_found = true;
-                break;
-            }
-        }
-
-        if (extension_found == false) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-SwapChainSupportDetails query_swap_chain_support(VkPhysicalDevice device, VkSurfaceKHR surface) {
-    SwapChainSupportDetails details = {0};
-
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &(details.capabilities));
-
-    uint32_t format_count = 0;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, NULL);
-    if (format_count != 0) {
-        details.num_formats = format_count;
-        details.formats = malloc(format_count * sizeof(VkSurfaceFormatKHR));
-        vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats);
-    }
-
-    uint32_t present_mode_count = 0;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, NULL);
-    if (present_mode_count != 0) {
-        details.num_present_modes = present_mode_count;
-        details.present_modes = malloc(present_mode_count * sizeof(VkPresentModeKHR));
-        vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.present_modes);
-    }
-
-    return details;
 }
 
 VkSurfaceFormatKHR choose_swap_surface_format(VkSurfaceFormatKHR *formats, uint32_t num_formats) {
