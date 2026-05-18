@@ -48,7 +48,8 @@ VkDevice create_logical_device(VkPhysicalDevice physical_device, QueueFamilyIndi
     VkPhysicalDeviceVulkan13Features vulkan_13_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
         .pNext = NULL,
-        .dynamicRendering = VK_TRUE
+        .dynamicRendering = VK_TRUE,
+        .synchronization2 = VK_TRUE
     };
     VkPhysicalDeviceFeatures2 device_features = {
         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
